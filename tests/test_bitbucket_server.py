@@ -4,7 +4,10 @@ import pytest
 import sys
 import zipfile
 
+from atlassian import Bitbucket
 from atlassian.bitbucket.server import Server
+from unittest.mock import patch
+from unittest import TestCase
 
 BITBUCKET = None
 try:
@@ -290,3 +293,44 @@ class TestBasic:
                 assert archive.namelist() == ["readme.md"]
                 with archive.open("readme.md") as file_in_archive:
                     assert file_in_archive.read() == b"Test readme.md at CommitId"
+
+
+class TestWebhook(TestCase):
+    def setUp(self):
+        self.fake_data = {
+            "project_key": "fake_project",
+            "repository_slug": "fake_repo",
+            "name": "fake_name",
+            "events": ["repo:refs_changed", "pr:merged", "pr:opened"],
+            "webhook_url": "https://example.com",
+            "active": True,
+            "secret": "fake_secret",
+        }
+
+    def test_create_webhook(self):
+        return_value = {
+            "id": 10,
+            "name": "fake_name",
+            "createdDate": 1513106011000,
+            "updatedDate": 1513106011000,
+            "events": [
+                "repo:refs_changed",
+                "pr:merged",
+                "pr:opened"
+            ],
+            "configuration": {
+                "secret": "fake_secret"
+            },
+            "url": "https://example.com",
+            "active": True
+        }
+        with patch.object(Bitbucket, "post", return_value=return_value):
+            bitbucket = Bitbucket(url="https://bitbucket.example.com", username="username", password="password")
+            rst = bitbucket.create_webhook(self.fake_data["project_key"], self.fake_data["repository_slug"],
+                                           self.fake_data["name"], self.fake_data["events"],
+                                           self.fake_data["webhook_url"], self.fake_data["active"])
+            self.assertEqual(rst["name"], self.fake_data["name"])
+            self.assertEqual(rst["events"], self.fake_data["events"])
+            self.assertEqual(rst["configuration"]["secret"], self.fake_data["secret"])
+            self.assertEqual(rst["url"], self.fake_data["webhook_url"])
+            self.assertEqual(rst["active"], self.fake_data["active"])
